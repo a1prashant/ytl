@@ -1,0 +1,118 @@
+#include <iostream>
+
+namespace Source {
+    enum class Types { A , B , C };
+    struct Data {
+        int     value;
+    };
+    struct Producer {
+        Type type;
+        Data data;
+    };
+}
+
+SourceProducer producerA( Source::Type::A )
+namespace User {
+    enum class Type { X, Y, Z };
+    enum class ResourceType { RX, RY, RZ };
+    struct Resource {
+        int value{ 100 };
+    };
+    struct Consumer {
+        Type            type;
+        ResourceType    rtype;
+    };
+}
+namespace Controller {
+    enum class SourcePriority { Low, Medium, High };
+    struct SourceControls {
+        Priority priority;
+    };
+    struct UserStatus {
+        double available;
+    };
+    // CreateTransformerProcess
+    // ModifySourceControl at runtime
+    // NotifiesUserStatus at runtime
+}
+namespace Transformer {
+    struct Process {
+        Process( const Controller::SourceControls & sControls 
+                , const Controller::UserStatus & uStatus
+                , const Rules::Book & rulesBook
+                ) {
+        }
+        const Controller::SourceControls    & sControls;
+        const Controller::UserStatus        & uStatus;
+        const Rules::Book                   & rulesBook;
+    };
+
+    struct TInstance {
+        OData process( const IData & idata ) {
+            OInfo oinfo{};
+            for( auto & v : validators ) {
+                auto [fatal, status] = v.validate( idata );
+                if( fatal ) return {};
+                oinfo.set( status );
+            }
+            for( auto & re : rulesBook ) {
+                auto [fatal, status] = re.check( idata );
+                if( fatal ) return {};
+                oinfo.set( status );
+            }
+        }
+    };
+}
+
+int main(int argc, char **argv) {
+    std::vector< Producer > listProducer {
+        { Source::Type::A }
+        , { Source::Type::B }
+        , { Source::Type::C }
+    };
+    std::vector< Consumer > listConsumers {
+        { User::Type::X }
+        , { User::Type::Y }
+        , { User::Type::Z }
+    };
+    std::vector< Test > listTests {
+    };
+    Controller controller( 
+            listSensors
+            , listConsumers
+            , listTests
+            );
+
+    std::thread threadConsumer;
+    threadConsumer.runAsync();
+
+    std::thread threadController;
+    threadController.runAsync();
+
+    wait( exitIsNotRequested );
+    Producer producerA;
+    Producer producerB;
+    Producer producerC;
+
+    Consumer< X_Config > consumerX;
+    Consumer< Y_Config > consumerY;
+    Consumer< Z_Config > consumerZ;
+
+    template <typename P, typename C>
+    using PCPair = std::pair< P, C >;
+
+    PCPair< Producer< A_Config >, Consumer< X_Config > > pairA;
+    PCPair< Producer< B_Config >, Consumer< Y_Config > > pairB;
+    PCPair< Producer< C_Config >, Consumer< Z_Config > > pairC;
+
+    Transformer::Process tprocess( 
+            , controllerConfig
+            );
+
+    auto oinfo = instance.process( idata );
+    // auto oinfo = instance.process<T>( collectin );
+
+    OData outputPlanner( oinfo );
+    // event-based
+}
+
