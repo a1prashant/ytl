@@ -1,5 +1,5 @@
 cc_binary(
     name = "app",
-    srcs = ["simple.cpp"],
+    srcs = ["src/simple.cpp"],
     linkopts = ["-pthread"],
 )

@@ -8,26 +8,10 @@
 #include <chrono>
 #include <queue>
 
-struct SourceData {
-    size_t i;
-    std::string s;
-};
-
-size_t TOTAL_ITEMS = 10;
-
-struct UserData {
-    size_t i;
-    std::string s;
-};
-
-std::queue<SourceData> gq;
+std::queue<int> gq;
 std::mutex gqMutex;
 
 namespace System {
-    class Application {
-        public:
-        virtual bool step() = 0;
-    };
     template <class APP> class Runner {
         std::unique_ptr<APP> app;
 
@@ -66,60 +50,48 @@ namespace System {
         }
     };
 }
-
 namespace User {
-    class Application : public System::Application {
-        std::vector<SourceData> data;
+    class Application {
+        int counter{};
         public:
-        bool step() override {
+        bool step() {
             {
                 std::lock_guard<std::mutex> lock( gqMutex );
-                data.push_back( gq.front( ) );
+                counter = gq.front( );
                 gq.pop();
             }
-            std::cout << "User::Step: received:" << data.size() << "\n";
-            if( data.size() == TOTAL_ITEMS ) return false;
+            std::cout << "User::Step: received:" << counter << "\n";
+            if( counter == 10 ) return false;
             return true;
         }
     };
 }
 
 namespace Source {
-    class Application : public System::Application {
-        std::vector<SourceData> dataArray;
+    class Application {
+        struct Data {
+            int i;
+            string s;
+        };
+        std::vector<Data> dataArray;
+        const size_t totalItem = 100;
         size_t counter = 0;
         public:
         Application() {
-            for( size_t i = 0 ; i < TOTAL_ITEMS ; i ++ ) {
+            for( size_t i = 0 ; i < totalItem ; i ++ ) {
                 dataArray.push_back( { i, std::string("src.data.") + std::to_string(i) } );
             }
         }
-        bool step() override {
+        bool step() {
             std::cout << "Source::Step\n";
             {
                 std::lock_guard<std::mutex> lock( gqMutex );
                 gq.push( dataArray[counter++] );
             }
-            if( counter == TOTAL_ITEMS ) return false;
+            if( counter == totalItem ) return false;
             return true;
         }
     };
 }
 
-int main()
-{
-    System::Runner< Source::Application >       runnerForSource;
-    System::Runner< Source::Application >       runnerForXformer;
-    System::Runner< User::Application >         runnerForUser;
-
-    runnerForXformer.start();
-    runnerForUser.start();
-    runnerForSource.start();
-
-    runnerForSource.join();
-    runnerForUser.join();
-    runnerForXformer.join();
-
-    std::cout << "Exiting...\n";
-}
 
