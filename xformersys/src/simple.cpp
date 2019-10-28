@@ -7,6 +7,7 @@
 #include <thread>
 #include <chrono>
 #include <queue>
+#include <future>
 
 struct SourceData {
     size_t i;
@@ -24,6 +25,21 @@ std::queue<SourceData> gq;
 std::mutex gqMutex;
 
 namespace System {
+    class ExitSignal {
+        std::promise<void> signal;
+        std::future<void> result = std::move(signal.get_future());
+        public:
+        enum class State { Triggered, Timeout };
+        void trigger() { signal.set_value(); }
+        State exitOrWait( auto period ) {
+            switch( result.wait_for( period ) ) {
+                default: [[fallthrough]];
+                case std::future_status::deferred: [[fallthrough]];
+                case std::future_status::ready: return State::Triggered;
+                case std::future_status::timeout: return State::Timeout;
+            }
+        }
+    };
     class Application {
         public:
         virtual bool step() = 0;
@@ -33,9 +49,7 @@ namespace System {
 
         std::thread theThread;
 
-        std::mutex m;
-        std::condition_variable cv;
-        bool exit{ false };
+        ExitSignal exitSignal;
 
         public:
         template <typename... ARGS> Runner( ARGS... args ) {
@@ -44,13 +58,15 @@ namespace System {
         void start( ) {
             theThread = std::thread( &Runner<APP>::threadProc, this );
         }
+        void stop( ) {
+            exitSignal.trigger();
+            theThread.join();
+            std::cout << "joined...\n";
+        }
         void threadProc( ) {
             std::cout << "inside threadProc\n";
-            while( 1 ) {
-                if( exit == true ) {
-                    std::cout << "externally set exit\n";
-                    break;
-                }
+            auto waitTime = std::chrono::milliseconds(1);
+            while ( exitSignal.exitOrWait( waitTime ) == ExitSignal::State::Timeout ) {
                 if( ! app->step( ) ) {
                     std::cout << "stepFunc failed\n";
                     break;
@@ -59,10 +75,6 @@ namespace System {
 
                 std::this_thread::sleep_for( std::chrono::seconds(1) );
             }
-        }
-        void join() {
-            theThread.join();
-            std::cout << "joined...\n";
         }
     };
 }
@@ -116,9 +128,11 @@ int main()
     runnerForUser.start();
     runnerForSource.start();
 
-    runnerForSource.join();
-    runnerForUser.join();
-    runnerForXformer.join();
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+ 
+    runnerForSource.stop();
+    runnerForUser.stop();
+    runnerForXformer.stop();
 
     std::cout << "Exiting...\n";
 }
