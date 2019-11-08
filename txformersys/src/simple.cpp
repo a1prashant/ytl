@@ -2,8 +2,10 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#include <memory>
 #include <condition_variable>
 #include <utility>
+#include <algorithm>
 #include <iterator>
 #include <thread>
 #include <chrono>
@@ -16,10 +18,11 @@ namespace Consumer {
         std::string s;
     };
     std::mutex cqMutex;
-    std::queue<Consumer::Data> consumerQ;
-    bool consume( const std::vector<Consumer::Data> & in ) {
+    using Container = std::deque<Consumer::Data>;
+    Container consumerQ;
+    bool consume( const Container & in ) {
         std::lock_guard<std::mutex> lock( cqMutex );
-        for( auto & i : in ) { consumerQ.push( i ); }
+        std::copy( in.begin(), in.end(), std::back_inserter( consumerQ ) );
         return true;
     }
 }
@@ -29,15 +32,12 @@ namespace Producer {
         size_t i;
         std::string s;
     };
-    std::mutex pqMutex;
-    std::queue<Producer::Data> producerQ;
-    std::vector<Producer::Data> produce() {
-        std::vector<Producer::Data> output;
-        std::lock_guard<std::mutex> lock( pqMutex );
-        while( ! producerQ.empty() ) {
-            output.push_back( producerQ.front() );
-            producerQ.pop();
-        }
+    std::mutex productMutex;
+    using Container = std::vector<Producer::Data>;
+    Container product;
+    Container produce() {
+        std::lock_guard<std::mutex> lock( productMutex );
+        Container output = product;
         return output;
     }
 }
@@ -46,12 +46,11 @@ namespace Txformer {
     Consumer::Data convert( const Producer::Data & data ) {
         return { data.i, data.s };
     }
-    template <template <typename> class C>
-    C<Consumer::Data> convert( const C<Producer::Data> & in ) {
-        C<Consumer::Data> out;
-        for( auto & i : in ) {
-            out.push_back( convert( i ) );
-        }
+    Consumer::Container convert( const Producer::Container & in ) {
+        Consumer::Container out;
+        std::transform( in.begin() , in.end() , std::back_inserter( out ), [](const Producer::Data & inData) {
+                return convert( inData );
+                });
         return out;
     }
 }
@@ -121,7 +120,7 @@ namespace Consumer {
                 if( ! consumerQ.empty() ) {
                     auto data = consumerQ.front( );
                     std::cout << "Consumer::Step: received:" << data.i << "\n";
-                    consumerQ.pop();
+                    consumerQ.pop_front();
                 }
             }
             return true;
@@ -136,16 +135,75 @@ namespace Producer {
         public:
         bool step() override {
             std::cout << "Producer::Step\n";
-            producerQ.push( {counter++, "ProducerData"} );
+            {
+                std::lock_guard<std::mutex> lock( productMutex );
+                product.push_back( {counter++, "ProducerData"} );
+            }
             return true;
         }
     };
 }
 
+namespace Validator {
+    struct BaseValidator {
+        virtual bool validate( int i ) { return true; }
+    };
+    template <typename T> struct crtp {
+        T & derived() { return static_cast< T & >( *this ); }
+        const T & derived() const { return static_cast< const T & >( *this ); }
+    };
+    template <typename T> struct Validator : public crtp<T>, public BaseValidator {
+        bool validate( int i ) override {
+            std::cout << "befor check" << "\n";
+            auto result = this->derived().check( i );
+            std::cout << "after check" << "\n";
+            return result;
+        }
+    };
+    struct IsEvenChecker : public Validator< IsEvenChecker > {
+        bool check( int i ) { return i % 2 == 0; }
+    };
+    struct IsOddChecker : public Validator< IsOddChecker > {
+        bool check( int i ) { return i % 2 == 1; }
+    };
+    struct IsPrimeChecker : public Validator< IsPrimeChecker > {
+        bool check( int i ) { return true; }
+    };
+}
+
 namespace Txformer {
+    using namespace Validator;
     class Application : public System::Application {
+
+        using PtrValidator = std::shared_ptr< BaseValidator >;
+        PtrValidator isEvenChecker;
+        PtrValidator isOddChecker;
+        PtrValidator isPrimeChecker;
+
+        using Validators = std::vector< PtrValidator >;
+        Validators validators {
+            std::make_shared< IsEvenChecker >()
+            , std::make_shared< IsOddChecker >()
+            , std::make_shared< IsPrimeChecker >()
+        };
+
+        using Enrichers = std::vector< bool >;
+        Enrichers enrichers;
+
         public:
+
         bool step() {
+            const auto & products = Producer::produce();
+            std::cout << "size-validators:" << validators.size() << "\n";
+            for( const auto & v : validators ) {
+                std::cout << "Going for validation" << "\n";
+                auto result = v->validate( products[0].i );
+                std::cout << "validation done" << "\n";
+                if( result ) { return false; }
+                std::cout << "before push_back" << "\n";
+                enrichers.push_back( result );
+                std::cout << "after push_back" << "\n";
+            }
             return Consumer::consume( Txformer::convert( Producer::produce() ) );
         }
     };
