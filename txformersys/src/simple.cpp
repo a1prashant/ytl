@@ -73,9 +73,11 @@ namespace System {
     };
     class Stepper {
         public:
+        std::string name{ "noname" };
+        Stepper( std::string appname ) : name( appname ) {}
         virtual bool step() = 0;
     };
-    class Application : public Stepper { };
+    using StepperApplication = Stepper;
     template <class APP> class Runner {
         std::unique_ptr<APP> app;
 
@@ -84,8 +86,7 @@ namespace System {
         ExitSignal exitSignal;
 
         public:
-        template <typename... ARGS> Runner( ARGS... args ) {
-            app.reset( new APP( args... ) );
+        template <typename... ARGS> Runner( ARGS... args ) : app( std::make_unique< APP >( args... ) ) {
         }
         void start( ) {
             theThread = std::thread( &Runner<APP>::threadProc, this );
@@ -100,10 +101,10 @@ namespace System {
             auto waitTime = std::chrono::milliseconds(1);
             while ( exitSignal.exitOrWait( waitTime ) == ExitSignal::State::Timeout ) {
                 if( ! app->step( ) ) {
-                    std::cout << "stepFunc failed\n";
+                    std::cout << app->name << ": " << "stepFunc failed\n";
                     break;
                 }
-                std::cout << "stepFunc succeeded\n";
+                std::cout << app->name << ": " << "stepFunc succeeded\n";
 
                 std::this_thread::sleep_for( std::chrono::seconds(1) );
             }
@@ -112,8 +113,9 @@ namespace System {
 }
 
 namespace Consumer {
-    class Application : public System::Application {
+    class Application : public System::StepperApplication {
         public:
+        template <class... Ts> Application(Ts... ts) : System::StepperApplication( ts... ) { }
         bool step() override {
             {
                 std::lock_guard<std::mutex> lock( cqMutex );
@@ -129,10 +131,11 @@ namespace Consumer {
 }
 
 namespace Producer {
-    class Application : public System::Application {
+    class Application : public System::StepperApplication {
         std::queue<Data> queue;
         size_t counter{0};
         public:
+        template <class... Ts> Application(Ts... ts) : System::StepperApplication( ts... ) { }
         bool step() override {
             std::cout << "Producer::Step\n";
             {
@@ -146,6 +149,8 @@ namespace Producer {
 
 namespace Validator {
     struct BaseValidator {
+        std::string name{};
+        BaseValidator(std::string id) : name(id) {}
         virtual bool validate( int i ) { return true; }
     };
     template <typename T> struct crtp {
@@ -153,27 +158,30 @@ namespace Validator {
         const T & derived() const { return static_cast< const T & >( *this ); }
     };
     template <typename T> struct Validator : public crtp<T>, public BaseValidator {
+        template <class... Ts> Validator(Ts... ts) : BaseValidator( ts... ) { }
         bool validate( int i ) override {
-            std::cout << "befor check" << "\n";
             auto result = this->derived().check( i );
-            std::cout << "after check" << "\n";
+            std::cout << this->derived().name << " check:" << result << "\n";
             return result;
         }
     };
     struct IsEvenChecker : public Validator< IsEvenChecker > {
+        template <class... Ts> IsEvenChecker(Ts... ts) : Validator< IsEvenChecker >( ts... ) { }
         bool check( int i ) { return i % 2 == 0; }
     };
     struct IsOddChecker : public Validator< IsOddChecker > {
+        template <class... Ts> IsOddChecker(Ts... ts) : Validator< IsOddChecker >( ts... ) { }
         bool check( int i ) { return i % 2 == 1; }
     };
     struct IsPrimeChecker : public Validator< IsPrimeChecker > {
+        template <class... Ts> IsPrimeChecker(Ts... ts) : Validator< IsPrimeChecker >( ts... ) { }
         bool check( int i ) { return true; }
     };
 }
 
 namespace Txformer {
     using namespace Validator;
-    class Application : public System::Application {
+    class Application : public System::StepperApplication {
 
         using PtrValidator = std::shared_ptr< BaseValidator >;
         PtrValidator isEvenChecker;
@@ -182,27 +190,25 @@ namespace Txformer {
 
         using Validators = std::vector< PtrValidator >;
         Validators validators {
-            std::make_shared< IsEvenChecker >()
-            , std::make_shared< IsOddChecker >()
-            , std::make_shared< IsPrimeChecker >()
+            std::make_shared< IsEvenChecker >( "IsEvenChecker" )
+            , std::make_shared< IsOddChecker >( "IsOddChecker" )
+            , std::make_shared< IsPrimeChecker >( "IsPrimeChecker" )
         };
 
         using Enrichers = std::vector< bool >;
         Enrichers enrichers;
 
         public:
+        template <class... Ts> Application(Ts... ts) : System::StepperApplication( ts... ) { }
 
         bool step() {
             const auto & products = Producer::produce();
-            std::cout << "size-validators:" << validators.size() << "\n";
-            for( const auto & v : validators ) {
-                std::cout << "Going for validation" << "\n";
-                auto result = v->validate( products[0].i );
-                std::cout << "validation done" << "\n";
-                if( result ) { return false; }
-                std::cout << "before push_back" << "\n";
-                enrichers.push_back( result );
-                std::cout << "after push_back" << "\n";
+            std::cout << "products-size:" << products.size() << ", size-validators:" << validators.size() << "\n";
+            for( const auto & p : products ) {
+                for( const auto & v : validators ) {
+                    auto result = v->validate( p.i );
+                    enrichers.push_back( result );
+                }
             }
             return Consumer::consume( Txformer::convert( Producer::produce() ) );
         }
@@ -211,15 +217,15 @@ namespace Txformer {
 
 int main()
 {
-    System::Runner< Producer::Application > producerRunner{};
-    System::Runner< Txformer::Application > txformerRunner{};
-    System::Runner< Consumer::Application > consumerRunner{};
+    System::Runner< Producer::Application > producerRunner{ "Producer" };
+    System::Runner< Txformer::Application > txformerRunner{ "Txformer" };
+    System::Runner< Consumer::Application > consumerRunner{ "Consumer" };
 
     producerRunner.start();
     txformerRunner.start();
     consumerRunner.start();
 
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    std::this_thread::sleep_for(std::chrono::seconds(7));
  
     consumerRunner.stop();
     txformerRunner.stop();
