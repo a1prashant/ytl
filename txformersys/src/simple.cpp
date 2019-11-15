@@ -14,7 +14,8 @@
 
 namespace Consumer {
     struct Data {
-        size_t i;
+        size_t id;
+        size_t value;
         std::string s;
     };
     std::mutex cqMutex;
@@ -29,7 +30,8 @@ namespace Consumer {
 
 namespace Producer {
     struct Data {
-        size_t i;
+        size_t id;
+        size_t value;
         std::string s;
     };
     std::mutex productMutex;
@@ -44,7 +46,7 @@ namespace Producer {
 
 namespace Txformer {
     Consumer::Data convert( const Producer::Data & data ) {
-        return { data.i, data.s };
+        return { data.id, data.value, data.s };
     }
     Consumer::Container convert( const Producer::Container & in ) {
         Consumer::Container out;
@@ -121,7 +123,7 @@ namespace Consumer {
                 std::lock_guard<std::mutex> lock( cqMutex );
                 if( ! consumerQ.empty() ) {
                     auto data = consumerQ.front( );
-                    std::cout << "Consumer::Step: received:" << data.i << "\n";
+                    std::cout << "Consumer::Step: received:" << data.id << "\n";
                     consumerQ.pop_front();
                 }
             }
@@ -151,7 +153,7 @@ namespace Validator {
     struct BaseValidator {
         std::string name{};
         BaseValidator(std::string id) : name(id) {}
-        virtual bool validate( int i ) { return true; }
+        virtual bool validate( const auto & entry ) { return true; }
     };
     template <typename T> struct crtp {
         T & derived() { return static_cast< T & >( *this ); }
@@ -159,66 +161,155 @@ namespace Validator {
     };
     template <typename T> struct Validator : public crtp<T>, public BaseValidator {
         template <class... Ts> Validator(Ts... ts) : BaseValidator( ts... ) { }
-        bool validate( int i ) override {
-            auto result = this->derived().check( i );
+        bool validate( const auto & entry ) override {
+            auto result = this->derived().check( entry );
             std::cout << this->derived().name << " check:" << result << "\n";
             return result;
         }
     };
     struct IsEvenChecker : public Validator< IsEvenChecker > {
+        using result_type = bool;
         template <class... Ts> IsEvenChecker(Ts... ts) : Validator< IsEvenChecker >( ts... ) { }
-        bool check( int i ) { return i % 2 == 0; }
+        result_type check( const auto & entry ) { return entry.id % 2 == 0; }
     };
     struct IsOddChecker : public Validator< IsOddChecker > {
+        using result_type = bool;
         template <class... Ts> IsOddChecker(Ts... ts) : Validator< IsOddChecker >( ts... ) { }
-        bool check( int i ) { return i % 2 == 1; }
+        result_type check( const auto & entry ) { return entry.id % 2 == 1; }
     };
     struct IsPrimeChecker : public Validator< IsPrimeChecker > {
+        using result_type = bool;
         template <class... Ts> IsPrimeChecker(Ts... ts) : Validator< IsPrimeChecker >( ts... ) { }
-        bool check( int i ) { return true; }
+        result_type check( const auto & entry ) { return true; }
     };
 }
 
-namespace Txformer {
-    using namespace Validator;
-    class Application : public System::StepperApplication {
+namespace Transformer {
 
-        using PtrValidator = std::shared_ptr< BaseValidator >;
-        PtrValidator isEvenChecker;
-        PtrValidator isOddChecker;
-        PtrValidator isPrimeChecker;
-
-        using Validators = std::vector< PtrValidator >;
-        Validators validators {
-            std::make_shared< IsEvenChecker >( "IsEvenChecker" )
-            , std::make_shared< IsOddChecker >( "IsOddChecker" )
-            , std::make_shared< IsPrimeChecker >( "IsPrimeChecker" )
-        };
-
-        using Enrichers = std::vector< bool >;
-        Enrichers enrichers;
-
+    template <typename K, typename V> class Cache {
+        std::unordered_map<K, V> cache;
         public:
-        template <class... Ts> Application(Ts... ts) : System::StepperApplication( ts... ) { }
-
-        bool step() {
-            const auto & products = Producer::produce();
-            std::cout << "products-size:" << products.size() << ", size-validators:" << validators.size() << "\n";
-            for( const auto & p : products ) {
-                for( const auto & v : validators ) {
-                    auto result = v->validate( p.i );
-                    enrichers.push_back( result );
-                }
+        bool conditionalAdd( const auto & newEntry ) {
+            if( CriteriaReplace( newEntry ) ) {
+                cache.insert( newEntry );
+                return true;
             }
-            return Consumer::consume( Txformer::convert( Producer::produce() ) );
+        }
+        bool CriteriaReplace( const auto & newEntry ) {
+            const auto kReplace{ true };
+            const auto kDoNotReplace{ false };
+
+            auto result = cache.find( newEntry.first )
+
+            if( result == cache.end() ) return kReplace;
+            else if( newEntry.tStart > result.tEnd ) return kReplace;
+            else if( result.value >= newEntry.value ) return kReplace;
+            return kDoNotReplace;
         }
     };
 }
 
+namespace Arranger {
+    template <typename K, typename V> class Feed {
+        struct State {
+            kNotUsed,
+            kInUse,
+            kFutureUse,
+        };
+        struct Context {
+            K           key;
+            PlannedTime plannedTime;
+        };
+        const std::chrono::seconds kExecutionDuration{ 5 };
+        using value_type = std::pair<K,Context>;
+        std::map< K, V > table;
+        public:
+        using key_type = K;
+        using mapped_type = V;
+        bool inspect( const value_type & entry ) {
+            auto key = entry.key;
+            auto result = table.find( key );
+            if( result == table.end() ) {
+                using std::chrono;
+                table.push_back( { key, { V, system_clock::now() } } );
+                return true;
+            } else {
+                auto currentPlan = result.plannedTime;
+                if( currentPlan + 
+            }
+            // new entry is new ; add it directly
+            // new entry can/NOT replace old? whats the criteria
+            // if Key is already in use
+            
+        }
+    };
+}
+
+namespace Txformer {
+    template <class Validators, class OPController>
+    class Application : public System::StepperApplication {
+
+        Validators validators;
+        OPArranger op_arranger;
+
+        public:
+        template <class... Ts>
+            Application( Ts... ts, const Validators & v, const OPController & opi )
+            : System::StepperApplication( ts... )
+            , validators( v )
+            , op_arranger( opi ) {
+            }
+
+        bool step() {
+            const auto & products = Producer::produce();
+            for( const auto & p : products ) {
+                op_arranger::mapped_type output; 
+                entry.key( p.id );
+                for( const auto & v : validators ) {
+                    output.emplace_back( v->validate( p ) );
+                }
+                if( output.size() ) {
+                    op_arranger.inspect( { p.id, output } );
+                }
+            }
+            return true;
+        }
+    };
+}
+
+auto CreateOutputArranger() {
+    using Enrichers = std::vector< bool >;
+    Enrichers enrichers;
+
+    using DerivedInfo = std::tuple<
+        IsEvenChecker::result_type
+        , IsOddChecker::result_type
+        , IsPrimeChecker::result_type
+        >;
+    using ProductInfoMap = std::map< Producer::ProductId, DerivedInfo >;
+    ProductInfoMap productInfoMap;
+    return productInfoMap;
+}
+
+auto CreateValidators() {
+    using namespace Validator;
+    using PtrValidator = std::shared_ptr< BaseValidator >;
+    using Validators = std::vector< PtrValidator >;
+    Validators validators {
+        std::make_shared< IsEvenChecker >( "IsEvenChecker" )
+            , std::make_shared< IsOddChecker >( "IsOddChecker" )
+            , std::make_shared< IsPrimeChecker >( "IsPrimeChecker" )
+    };
+    return validators;
+}
+
 int main()
 {
+    const auto & validators = CreateValidators();
+    const auto & op_arranger = CreateOutputArranger();
+
     System::Runner< Producer::Application > producerRunner{ "Producer" };
-    System::Runner< Txformer::Application > txformerRunner{ "Txformer" };
+    System::Runner< Txformer::Application > txformerRunner{ "Txformer", validators, op_arranger };
     System::Runner< Consumer::Application > consumerRunner{ "Consumer" };
 
     producerRunner.start();
@@ -226,7 +317,7 @@ int main()
     consumerRunner.start();
 
     std::this_thread::sleep_for(std::chrono::seconds(7));
- 
+
     consumerRunner.stop();
     txformerRunner.stop();
     producerRunner.stop();
