@@ -1,30 +1,37 @@
+#pragma once
+
 #include <iostream>
+#include "include/converter.h"
 
 namespace ytl::fieldmapper {
-    template <typename V, typename O, typename... ARGS> struct Field {
+    template <typename R, typename V> struct Field {
         using value_type = V;
         using output_type = R;
-        using self_type = Field<V,O>;
+        using self_type = Field<R, V>;
 
-        const value_type value{ARGS&&...};
+        const value_type value;
 
-        Field( const value_type v ) : value(v) {}
-        Field( const value_type & v ) : value(v) {}
+        template<typename... ARGS>
+        Field(const ARGS... args ) : value(args...) { }
 
-        const value_type value() const { return value; }
         const value_type getValue() const { return value; }
         const value_type & getValueRef() const { return value; }
 
-        output_type output() const { return changer::get<output_type>( getValueRef() ); }
-        output_type getOutput() const { return changer::get<output_type>( getValueRef() ); }
+        output_type output() const {
+            return ytl::converter::get<output_type>( getValueRef() );
+        }
+        output_type getOutput() const {
+            return ytl::converter::get<output_type>( getValueRef() );
+        }
 
-        template <typename T> output_type get() { return changer::get<T>( getValueRef() ); }
-        template <typename T> output_type convert() { return changer::get<T>( getValueRef() ); }
+        template <typename T> output_type get() { return converter::get<T>( getValueRef() ); }
+        template <typename T> output_type convert() { return converter::get<T>( getValueRef() ); }
     };
 
-    template <typename V, typename O>
-    inline std::ostream & operator << ( std::ostream & os, const Field<V,R> & field ) {
+    template <typename R, typename V>
+    inline std::ostream & operator << ( std::ostream & os, const Field<R, V> & field ) {
         os << std::to_string( field.getValue() );
+        return os;
     }
 
     // TODO:

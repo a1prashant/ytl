@@ -37,7 +37,7 @@ namespace Producer {
     std::mutex productMutex;
     using Container = std::vector<Producer::Data>;
     Container product;
-    Container produce() {
+    Container yield() {
         std::lock_guard<std::mutex> lock( productMutex );
         Container output = product;
         return output;
@@ -184,66 +184,65 @@ namespace Validator {
     };
 }
 
+/*
 namespace Transformer {
-
-    template <typename K, typename V> class Cache {
-        std::unordered_map<K, V> cache;
+    class Timeline {
+        using TimeSlot = std::pair< time_point, time_point >;
+        std::list< TimeSlot > timeline;
+        void forgetPast( ) {
+            auto now = std::chrono::now();
+            std::remove_if( []( TimeSlot ts ) {
+                    return ts.second < now;
+                    });
+        }
         public:
-        bool conditionalAdd( const auto & newEntry ) {
-            if( CriteriaReplace( newEntry ) ) {
-                cache.insert( newEntry );
+        const TimeSlot & allocate( duration forDuration ) {
+            forgetPast();
+            auto last = timeline.rbegin();
+            return timeline.push_back( { last.second, last.second + forDuration } );
+        }
+    };
+    template <typename K, typename V> class OutGate {
+        struct Context {
+            time_point birth;
+            time_point execution;
+            time_point death;
+        };
+        using W = std::pair< V, Context >;
+        std::unordered_map<K, W> cache;
+        bool isReplacable( const W & newEntry ) {
+            auto result = cache.find( newEntry.first );
+
+            if( result == cache.end() ) return true;
+            else if( newEntry.tStart > result.tEnd ) return true;
+            else if( result.value >= newEntry.value ) return true;
+            return false;
+        }
+        public:
+        bool inspect( const V & item ) {
+            if( isReplacable( { item, now() } ) ) {
+                cache.insert( { item.key, { item, timeline.allocate( duration ) } } );
                 return true;
             }
-        }
-        bool CriteriaReplace( const auto & newEntry ) {
-            const auto kReplace{ true };
-            const auto kDoNotReplace{ false };
-
-            auto result = cache.find( newEntry.first )
-
-            if( result == cache.end() ) return kReplace;
-            else if( newEntry.tStart > result.tEnd ) return kReplace;
-            else if( result.value >= newEntry.value ) return kReplace;
-            return kDoNotReplace;
+            // LOG_INFO() << "Item NOT replaced:" << item;
         }
     };
 }
 
 namespace Arranger {
-    template <typename K, typename V> class Feed {
         struct State {
             kNotUsed,
             kInUse,
             kFutureUse,
         };
-        struct Context {
-            K           key;
-            PlannedTime plannedTime;
-        };
         const std::chrono::seconds kExecutionDuration{ 5 };
         using value_type = std::pair<K,Context>;
-        std::map< K, V > table;
         public:
         using key_type = K;
         using mapped_type = V;
-        bool inspect( const value_type & entry ) {
-            auto key = entry.key;
-            auto result = table.find( key );
-            if( result == table.end() ) {
-                using std::chrono;
-                table.push_back( { key, { V, system_clock::now() } } );
-                return true;
-            } else {
-                auto currentPlan = result.plannedTime;
-                if( currentPlan + 
-            }
-            // new entry is new ; add it directly
-            // new entry can/NOT replace old? whats the criteria
-            // if Key is already in use
-            
-        }
     };
 }
+*/
 
 namespace Txformer {
     template <class Validators, class OPController>
@@ -261,7 +260,7 @@ namespace Txformer {
             }
 
         bool step() {
-            const auto & products = Producer::produce();
+            const auto & products = Producer::yield();
             for( const auto & p : products ) {
                 op_arranger::mapped_type output; 
                 entry.key( p.id );

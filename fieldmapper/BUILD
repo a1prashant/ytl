@@ -4,12 +4,11 @@ cc_library(
         hdrs = glob(["include/*.h"]),
         linkopts = ["-pthread"],
         visibility = ["//visibility:public"],
-# copts = ["-Iexternal/gtest/include"],
         )
 
 cc_test(
         name = "fieldmapper-test",
-        srcs = ["fieldmapper-test.cpp"],
+        srcs = glob(["test/*.cpp", "test/*.h"]),
         copts = ["-Iexternal/gtest/include"],
         deps = [ "@gtest//:main"
         , ":libfieldmapper"],
