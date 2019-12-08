@@ -1,18 +1,15 @@
 cc_library(
     name = "main",
     srcs = glob(
-        ["googletest-release-1.7.0/src/*.cc"],
-        exclude = ["googletest-release-1.7.0/src/gtest-all.cc"]
+        ["src/*.cc"],
+        exclude = ["src/gtest-all.cc"]
     ),
     hdrs = glob([
-        "googletest-release-1.7.0/include/**/*.h",
-        "googletest-release-1.7.0/src/*.h"
+        "include/**/*.h",
+        "src/*.h"
     ]),
-    copts = [
-        "-Iexternal/gtest/googletest-release-1.7.0/include"
-    ],
+    copts = ["-Iexternal/gtest/include"],
     linkopts = ["-pthread"],
     visibility = ["//visibility:public"],
 )
-
 

@@ -10,6 +10,8 @@ cc_test(
         name = "fieldmapper-test",
         srcs = glob(["test/*.cpp", "test/*.h"]),
         copts = ["-Iexternal/gtest/include"],
-        deps = [ "@gtest//:main"
-        , ":libfieldmapper"],
+        deps = [ 
+        ":libfieldmapper",
+        "@gtest//:main",
+        ],
        )

@@ -1,5 +1,22 @@
 #include "fieldmapper-test.h"
 
+
+#include "gtest/gtest.h"
+#include "include/fieldmapper.h"
+#include "include/conversion.h"
+
+namespace {
+
+    class TestFixture : public ::testing::Test {
+        protected:
+            virtual void SetUp() {
+            }
+
+            virtual void TearDown() {
+            }
+    };
+}
+
 using namespace ytl::fieldmapper;
 
 TEST(TestFixture, CheckGetValueFn) {
