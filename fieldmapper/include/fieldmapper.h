@@ -9,8 +9,8 @@ namespace ytl::fieldmapper {
         using self_type = Field<R, V>;
 
         const value_type obj;
+
         const value_type & value() const { return obj; }
-        template<typename... ARGS> Field(const ARGS... args ) : obj(args...) { }
 
         output_type yield() const { return ytl::convert_to<output_type>( value() ); }
 
