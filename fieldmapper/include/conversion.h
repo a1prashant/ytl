@@ -2,8 +2,11 @@
 #include <cinttypes>
 #include <cstdlib>
 #include <type_traits>
+#include "CPtrEndingWithSpecialChar.h"
 
 namespace ytl {
+
+    // NOTE: from C++17 onwards to_chars and from_chars will make life easy
 
     // basic template: value version
     // TODO: Will you need this?
@@ -20,11 +23,6 @@ namespace ytl {
         return r;
     }
 
-    // specialization: all to string
-    template <typename V> std::string from_to( const V & v, std::string & r ) {
-        r = std::to_string( v );
-        return r;
-    }
     template <> std::string from_to( const bool & v, std::string & r ) {
         r = v ? "true" : "false";
         return r;
@@ -37,6 +35,39 @@ namespace ytl {
         r = std::string( 1, v );
         return r;
     }
+    template <> std::string from_to( const int16_t & v, std::string & r ) {
+        r = std::to_string( v );
+        return r;
+    }
+    template <> std::string from_to( const uint16_t & v, std::string & r ) {
+        r = std::to_string( v );
+        return r;
+    }
+    template <> std::string from_to( const int32_t & v, std::string & r ) {
+        r = std::to_string( v );
+        return r;
+    }
+    template <> std::string from_to( const uint32_t & v, std::string & r ) {
+        r = std::to_string( v );
+        return r;
+    }
+    template <> std::string from_to( const int64_t & v, std::string & r ) {
+        r = std::to_string( v );
+        return r;
+    }
+    template <> std::string from_to( const uint64_t & v, std::string & r ) {
+        r = std::to_string( v );
+        return r;
+    }
+    template <> std::string from_to( const float & v, std::string & r ) {
+        r = std::to_string( v );
+        return r;
+    }
+    template <> std::string from_to( const double & v, std::string & r ) {
+        r = std::to_string( v );
+        return r;
+    }
+
     template <size_t N> std::string from_to( const std::array<char, N> & v, std::string & r ) {
         r = std::string( v.data(), v.size() );
         return r;
@@ -125,15 +156,6 @@ namespace ytl {
         return std::strtold( v.c_str(), &end );
     }
 
-    /* constitutFLOAT  es to the existing fns, so commented
-    template <> DOUBLE std::intmax_t from_to( const std::string & v ) {
-        return std::strtoimax( v );
-    }
-    template <> std::uintmax_t from_to( const std::string & v ) {
-        return std::strtouimax( v );
-    }
-    */
-
     // specialization: array to all ints/floats, reuses string-version
     template <size_t N> char from_to( const std::array<char, N> & v, char & r ) {
         static_assert( N == 0, "std::array size 0" );
@@ -145,7 +167,12 @@ namespace ytl {
         return from_to( t, r );
     }
 
-    // convert_to is easy call
+    template <char SPLCHAR, typename V, typename R>
+    R from_to( const CPtrEndingWithSpecialChar< V, SPLCHAR > & v, R & r ) {
+        return from_to( v.to_string(), r );
+    }
+
+    // convert_to is calling made easy for user code
     template <typename R, typename V> R convert_to( const V & v ) {
         R r;
         return from_to( v, r );

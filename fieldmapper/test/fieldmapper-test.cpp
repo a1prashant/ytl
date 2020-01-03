@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "include/fieldmapper.h"
 #include "include/conversion.h"
+#include "include/CPtrEndingWithSpecialChar.h"
 
 namespace {
 
@@ -20,23 +21,30 @@ namespace {
         EXPECT_EQ( expectedValue, field.yield() );
     }
 
-    // TODO: using PtrField = Field< cptr_splch<V, TOKEN>, R >;
+    template <typename V, char TOKEN, typename R>
+    using PtrSplCharField = ytl::fieldmapper::Field< ytl::CPtrEndingWithSpecialChar<V, TOKEN>, R >;
+
+    using PtrCsv = ytl::CPtrEndingWithSpecialChar< char, ',' >;
 }
 
 using namespace ytl::fieldmapper;
-
 
 TEST(TestFixture, CheckGetValueFn) {
     Field< char, float > field{ 'a' };
     EXPECT_EQ( 'a', field.value() );    
 }
 
-TEST(TestFixture, CheckOutputFn) {
+TEST(TestFixture, CheckYieldFn) {
     Field< char, float > field{ 'a' };
     EXPECT_EQ( 97.0f, field.yield() );    
 }
 
-TEST(TestFixture, charPtrToStringToBasicPrimitiveDataTypesUsingStdFunctions ) {
+TEST(TestFixture, CheckBasicConvertToFn ) {
+    char ch = 'a';
+    EXPECT_EQ( 97.0f, ytl::convert_to<float>( ch ) );    
+}
+
+TEST(TestFixture, CharPtrOfNumberString_To_BasicTypes ) {
     const char * pch = "123.456";
     EXPECT_EQ( 123.456f, ytl::convert_to<float>( pch ) );    
     EXPECT_EQ( 123l, ytl::convert_to<int32_t>( pch ) );
@@ -46,7 +54,7 @@ TEST(TestFixture, charPtrToStringToBasicPrimitiveDataTypesUsingStdFunctions ) {
     EXPECT_EQ( 123.456, ytl::convert_to<double>( pch ) );
 }
 
-TEST(TestFixture, stringToBasicPrimitiveDataTypesUsingStdFunctions ) {
+TEST(TestFixture, String_To_BasicTypes ) {
     const std::string a = "123.456";
 
     EXPECT_EQ( 123.456f, ytl::convert_to<float>( a ) );
@@ -57,7 +65,7 @@ TEST(TestFixture, stringToBasicPrimitiveDataTypesUsingStdFunctions ) {
     EXPECT_EQ( 123.456, ytl::convert_to<double>( a ) );    
 }
 
-TEST(TestFixture, rvalueStringToPrimitiveDataTypesUsingStdFunctions ) {
+TEST(TestFixture, RvalueString_To_BasicTypes ) {
     createFieldAndCheckResult< std::string, float >( "123.456", 123.456f );
     createFieldAndCheckResult< std::string, int32_t >( "123.456", 123l );
     createFieldAndCheckResult< std::string, int64_t >( "123.456", 123ll );
@@ -66,40 +74,29 @@ TEST(TestFixture, rvalueStringToPrimitiveDataTypesUsingStdFunctions ) {
     createFieldAndCheckResult< std::string, double >( "123.456", 123.456 );
 }
 
-TEST(TestFixture, CheckGetTemplateFn ) {
-    char ch = 'a';
-    EXPECT_EQ( 97.0f, ytl::convert_to<float>( ch ) );    
-}
-
-TEST(TestFixture, CheckToString ) {
-    bool               b    = true;
-    char               ch   = 'c';
-    unsigned char      uch  = 'C';
-    short              sh   = 10;
-    unsigned short     ush  = 12;
-    int                i    = 12;
-    unsigned int       ui   = 12;
-    long               l    = 12;
-    unsigned long      ul   = 12;
-    long long          ll   = 12;
-    unsigned long long ull  = 12;
-    float              f    = 12;
-    double             d    = 12;
-    long double        ld   = 12;
-    EXPECT_EQ( "true", ytl::convert_to<std::string>( b   ) );
-    EXPECT_EQ( "c"   , ytl::convert_to<std::string>( ch  ) );
-    EXPECT_EQ( "C"   , ytl::convert_to<std::string>( uch ) );
-    EXPECT_EQ( "10"  , ytl::convert_to<std::string>( sh  ) );
-    EXPECT_EQ( "12"  , ytl::convert_to<std::string>( ush ) );
-    EXPECT_EQ( "12"  , ytl::convert_to<std::string>( i   ) );
-    EXPECT_EQ( "12"  , ytl::convert_to<std::string>( ui  ) );
-    EXPECT_EQ( "12"  , ytl::convert_to<std::string>( l   ) );
-    EXPECT_EQ( "12"  , ytl::convert_to<std::string>( ul  ) );
-    EXPECT_EQ( "12"  , ytl::convert_to<std::string>( ll  ) );
-    EXPECT_EQ( "12"  , ytl::convert_to<std::string>( ull ) );
+TEST(TestFixture, BasicTypes_To_String ) {
+    bool                b   = true;
+    char                ch  = 'c';
+    unsigned char       u8  = 'C';
+    int16_t             i16 = 10;
+    uint16_t            u16 = 12;
+    int32_t             i32 = 12;
+    uint32_t            u32 = 12;
+    int64_t             i64 = 12;
+    uint64_t            u64 = 12;
+    float               f   = 12;
+    double              d   = 12;
+    EXPECT_EQ( "true"       , ytl::convert_to<std::string>( b   ) );
+    EXPECT_EQ( "c"          , ytl::convert_to<std::string>( ch  ) );
+    EXPECT_EQ( "C"          , ytl::convert_to<std::string>( u8  ) );
+    EXPECT_EQ( "10"         , ytl::convert_to<std::string>( i16 ) );
+    EXPECT_EQ( "12"         , ytl::convert_to<std::string>( u16 ) );
+    EXPECT_EQ( "12"         , ytl::convert_to<std::string>( i32 ) );
+    EXPECT_EQ( "12"         , ytl::convert_to<std::string>( u32 ) );
+    EXPECT_EQ( "12"         , ytl::convert_to<std::string>( i64 ) );
+    EXPECT_EQ( "12"         , ytl::convert_to<std::string>( u64 ) );
     EXPECT_EQ( "12.000000"  , ytl::convert_to<std::string>( f   ) );
     EXPECT_EQ( "12.000000"  , ytl::convert_to<std::string>( d   ) );
-    EXPECT_EQ( "12.000000"  , ytl::convert_to<std::string>( ld  ) );
 }
 
 TEST(TestFixture, CheckArrays ) {
@@ -108,11 +105,11 @@ TEST(TestFixture, CheckArrays ) {
         std::array<char, 2> mm;
     };
     Data data{ { '1', '2' }, { '3', '4' } };
-    // EXPECT_EQ( 12ul, ytl::convert_to<unsigned long>( data.hh ) );    
-    // EXPECT_EQ( 34l, ytl::convert_to<long>( data.mm ) );    
+    // EXPECT_EQ( 12ul, ytl::convert_to<uint32_t>( data.hh ) );    
+    EXPECT_EQ( 34l, ytl::convert_to<int32_t>( data.mm ) );    
 }
 
-TEST(TestFixture, VariousFieldsToString ) {
+TEST(TestFixture, VariousFieldsStructMembers_To_String ) {
     struct Data {
         std::array<char, 2> mm;
         char ch;
@@ -152,6 +149,86 @@ TEST(TestFixture, VariousFieldsToString ) {
     EXPECT_EQ( "64", data.ui64.yield() );    
     EXPECT_EQ( "32", data.i32.yield() );    
     EXPECT_EQ( "false", data.flag.yield() );    
+}
+
+TEST(TestFixture, CustomDateString_To_Numbers) {
+    struct Data {
+        std::array<char, 2> dd;
+        char seperator_dd;
+        std::array<char, 2> mm;
+        char seperator_mm;
+        std::array<char, 4> yyyy;
+    };
+    Data data{ { '2', '7' }, '/', { '1', '2' }, '/', { '2', '0', '1', '9' } };
+    EXPECT_EQ( 27, ytl::convert_to<uint16_t>( data.dd ) );
+    EXPECT_EQ( 12, ytl::convert_to<uint16_t>( data.mm ) );
+    EXPECT_EQ( 2019, ytl::convert_to<uint16_t>( data.yyyy ) );
+}
+
+TEST( TestFixture, CustomEndSplCh_To_Data ) {
+    const char * input = "abc,def";
+
+    PtrCsv csv{ input };
+    Field< PtrCsv, std::string > data{ csv };
+    EXPECT_EQ( "abc", data.yield() );
+}
+
+TEST( TestFixture, CSV_To_Data ) {
+    const char * csv = "one,2.2,three,4,five";
+    struct Data {
+        std::string first;
+        std::string second;
+        std::string third;
+        uint32_t fourth;
+        std::string fifth;
+    };
+
+    struct FieldInData {
+        PtrCsv first;
+        PtrCsv second;
+        PtrCsv third;
+        PtrCsv fourth;
+        PtrCsv fifth;
+    };
+    FieldInData ptrStruct;
+
+    // a small dirty csv parser - start
+    {
+        auto addToStruct = [&]( const auto * p, auto count ) {
+            switch( count ) {
+                case 0: ptrStruct.first = p; break;
+                case 1: ptrStruct.second = p; break;
+                case 2: ptrStruct.third = p; break;
+                case 3: ptrStruct.fourth = p; break;
+                case 4: ptrStruct.fifth = p; break;
+            }
+        };
+        const char * p = csv;
+        int count = 0;
+        while( *p != '\0' ) {
+            if( count == 0 ) {
+                addToStruct( p, count++ );
+            } else if( *p == ',' ) {
+                addToStruct( ++p, count++ );
+            } else {
+                p++;
+            }
+        }
+        std::cout 
+            << ptrStruct.first  << "..."
+            << ptrStruct.second << "..."
+            << ptrStruct.third  << "..."
+            << ptrStruct.fourth << "..."
+            << ptrStruct.fifth  << "..."
+            ;
+    }
+    // a small dirty csv parser - end
+
+    EXPECT_EQ( "one"    , ytl::convert_to< std::string >( ptrStruct.first  ) );
+    EXPECT_EQ( 2.2f     , ytl::convert_to< float >( ptrStruct.second ) );
+    EXPECT_EQ( "three"  , ytl::convert_to< std::string >( ptrStruct.third  ) );
+    EXPECT_EQ( 4ul      , ytl::convert_to< uint32_t    >( ptrStruct.fourth ) );
+    EXPECT_EQ( "five"   , ytl::convert_to< std::string >( ptrStruct.fifth  ) );
 }
 
 
